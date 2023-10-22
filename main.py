@@ -6,6 +6,10 @@ from tools.txt_loader import load_text
 from tools.get_batch import get_batch
 from models.bigram_language_model import BigramLanguageModel as BLM
 
+
+batch_size = 4  # How many independent sequences will we precess in parallel
+block_size = 8  # What is the maximum context length for predictions
+
 # Check and assign GPU (CUDA) or MPS (Apple Metal) if available
 device = torch.device("cpu")
 if torch.cuda.is_available():
@@ -61,8 +65,6 @@ val_data = data[train_test_thres:]
 #     print(f"When input is {context} the target is : {target}")
 
 torch.manual_seed(1337)
-batch_size = 4  # How many independent sequences will we precess in parallel
-block_size = 8  # What is the maximum context length for predictions
 
 xb, yb = get_batch(train_data, batch_size, block_size)
 print('Inputs:')
@@ -86,5 +88,5 @@ print(loss)
 # idx = torch.zeros((1, 1), dtype = torch.long, device = device)
 print(decode(m.generate(torch.zeros((1, 1), dtype = torch.long, device = device), max_new_tokens=100)[0].tolist()))
 
-m.train(train_data, batch_size, block_size)
+m.train(train_data, val_data, batch_size, block_size)
 print(decode(m.generate(torch.zeros((1, 1), dtype = torch.long, device = device), max_new_tokens=100)[0].tolist()))

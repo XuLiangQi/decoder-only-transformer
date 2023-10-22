@@ -6,6 +6,13 @@ from tools.get_batch import get_batch
 
 torch.manual_seed(1337)
 
+batch_size = 4  # How many independent sequences will we precess in parallel
+block_size = 8  # What is the maximum context length for predictions
+max_iters = 3000
+eval_interval = 300
+learning_rate = 1e-2
+eval_iters = 200
+
 class BigramLanguageModel(nn.Module):
     def __init__(self, vocab_size, device):
         super().__init__()
@@ -48,12 +55,12 @@ class BigramLanguageModel(nn.Module):
 
         return idx
 
-    def train(self, data, batch_size, block_size):
+    def train(self, train_data, val_data, batch_size, block_size):
         optimizer = torch.optim.AdamW(self.parameters(), lr = 1e-3)
         # batch_size = 32
-        for steps in range(10000):
+        for iter in range(max_iters):
             # Sample a batch of data
-            xb, yb = get_batch(data, batch_size, block_size)
+            xb, yb = get_batch(train_data, batch_size, block_size)
 
             # Evaluate the loss
             _, loss = self.forward(xb, yb)
@@ -61,6 +68,28 @@ class BigramLanguageModel(nn.Module):
             loss.backward()
             optimizer.step()
 
-            # Print loss every 1000 steps
-            if steps % 1000 == 0:
-                print(loss.item())
+            # # Print loss every 1000 steps
+            # if steps % 1000 == 0:
+            #     print(loss.item())
+
+            if iter % eval_interval == 0:
+                losses = self.estimate_loss(train_data, val_data)
+                print(f"Step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+
+    @torch.no_grad()
+    def estimate_loss(self, train, test):
+        out = {}
+        self.eval()
+        for split in ['train', 'val']:
+            losses = torch.zeros(eval_iters)
+            for k in range(eval_iters):
+                if split == 'train':
+                    data = train
+                else:
+                    data = test
+                X, Y = get_batch(data, batch_size, block_size)
+                logits, loss = self.forward(X, Y)
+                losses[k] = loss.item()
+                out[split] = losses.mean()
+        self.train()
+        return out
