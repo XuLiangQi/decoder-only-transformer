@@ -36,7 +36,7 @@ class BigramLanguageModel(nn.Module):
             # Get the predictions
             logits, loss = self.forward(idx)
             # Focus only on the last time step
-            logits = logits[:, -1, :]   # becomes (B), C)
+            logits = logits[:, -1, :]   # becomes (B, C)
             # Apply softmax to get probabilities
             probs = F.softmax(logits, dim = -1)     # (B, C)
             # Sample from the distribution
