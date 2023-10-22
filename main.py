@@ -11,6 +11,7 @@ device = torch.device("cpu")
 if torch.cuda.is_available():
     device = torch.device("cuda")
 elif torch.backends.mps.is_available():
+    # Disabled due to bus error caused by mps backend
     pass
     #device = torch.device("mps")
 
@@ -48,9 +49,9 @@ train_test_thres = int(0.9 * len(data))
 train_data = data[:train_test_thres]
 val_data = data[train_test_thres:]
 
-# Break text into chunks
-block_size = 8
-print(train_data[:block_size + 1])
+# # Break text into chunks
+# block_size = 8
+# print(train_data[:block_size + 1])
 
 # x = train_data[:block_size]
 # y = train_data[1:block_size + 1]
@@ -63,7 +64,7 @@ torch.manual_seed(1337)
 batch_size = 4  # How many independent sequences will we precess in parallel
 block_size = 8  # What is the maximum context length for predictions
 
-xb, yb = get_batch('train', train_data, val_data, batch_size, block_size)
+xb, yb = get_batch(train_data, batch_size, block_size)
 print('Inputs:')
 print(xb.shape)
 print(xb)
@@ -71,11 +72,11 @@ print('Targets:')
 print(yb.shape)
 print(yb)
 
-for b in range(batch_size):
-    for t in range(block_size):
-        context = xb[b, :t+1]
-        target = yb[b, t]
-        print(f"When input is {context.tolist()} the target: {target}")
+# for b in range(batch_size):
+#     for t in range(block_size):
+#         context = xb[b, :t+1]
+#         target = yb[b, t]
+#         print(f"When input is {context.tolist()} the target: {target}")
 
 m = BLM(vocab_size, device)
 logits, loss = m.forward(xb, yb)
@@ -85,5 +86,5 @@ print(loss)
 # idx = torch.zeros((1, 1), dtype = torch.long, device = device)
 print(decode(m.generate(torch.zeros((1, 1), dtype = torch.long, device = device), max_new_tokens=100)[0].tolist()))
 
-m.train('train', train_data, val_data, batch_size, block_size)
+m.train(train_data, batch_size, block_size)
 print(decode(m.generate(torch.zeros((1, 1), dtype = torch.long, device = device), max_new_tokens=100)[0].tolist()))

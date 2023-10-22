@@ -17,6 +17,8 @@ class BigramLanguageModel(nn.Module):
     def forward(self, idx, targets=None):
         # idx and targets are both (B, T) tensor of integers
         logits = self.token_embedding_table(idx)    # (B, T, C), in this case (4 (batch_size), 8 (block_size), 65(vocab_size))
+                                                    # becase idx is (B, T), and each element from "idx" will go in token_embedding_table
+                                                    # and get a row of data (1, 65(C))
 
         if targets is not None:
             B, T, C = logits.shape
@@ -34,7 +36,7 @@ class BigramLanguageModel(nn.Module):
         # idx is (B, T) array of indices in the current context
         for _ in range(max_new_tokens):
             # Get the predictions
-            logits, loss = self.forward(idx)
+            logits, _ = self.forward(idx)
             # Focus only on the last time step
             logits = logits[:, -1, :]   # becomes (B, C)
             # Apply softmax to get probabilities
@@ -46,15 +48,15 @@ class BigramLanguageModel(nn.Module):
 
         return idx
 
-    def train(self, split, train_data, val_data, batch_size, block_size):
+    def train(self, data, batch_size, block_size):
         optimizer = torch.optim.AdamW(self.parameters(), lr = 1e-3)
         # batch_size = 32
         for steps in range(10000):
             # Sample a batch of data
-            xb, yb = get_batch(split, train_data, val_data, batch_size, block_size)
+            xb, yb = get_batch(data, batch_size, block_size)
 
             # Evaluate the loss
-            logits, loss = self.forward(xb, yb)
+            _, loss = self.forward(xb, yb)
             optimizer.zero_grad(set_to_none = True)
             loss.backward()
             optimizer.step()
