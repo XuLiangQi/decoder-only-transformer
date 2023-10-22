@@ -7,10 +7,11 @@ from models.bigram_language_model import BigramLanguageModel as BLM
 
 # Check and assign GPU (CUDA) or MPS (Apple Metal) if available
 device = torch.device("cpu")
-# if torch.cuda.is_available():
-#     device = torch.device("cuda")
-# elif torch.backends.mps.is_available():
-#     device = torch.device("mps")
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+elif torch.backends.mps.is_available():
+    pass
+    #device = torch.device("mps")
 
 # Read tiny shakespear txt file
 text_dir = "data/tinyShakespeare.txt"
@@ -41,7 +42,7 @@ data = torch.tensor(encode(text), dtype=torch.long, device=device)
 # print(data.shape, data.dtype)
 # print(data[:1000])
 
-# Setup a threshold to split data into 90% train, 10% test
+# Set up a threshold to split data into 90% train, 10% test
 train_test_thres = int(0.9 * len(data))
 train_data = data[:train_test_thres]
 val_data = data[train_test_thres:]
@@ -62,10 +63,10 @@ batch_size = 4  # How many independent sequences will we precess in parallel
 block_size = 8  # What is the maximum context length for predictions
 
 def get_batch(split):
-    data = train_data if split == 'train' else val_data
-    ix = torch.randint(len(data) - block_size, (batch_size,))
-    x = torch.stack([data[i:i + block_size] for i in ix])
-    y = torch.stack([data[i + 1:i + block_size + 1] for i in ix])
+    temp_data = train_data if split == 'train' else val_data
+    ix = torch.randint(len(temp_data) - block_size, (batch_size,))
+    x = torch.stack([temp_data[i:i + block_size] for i in ix])
+    y = torch.stack([temp_data[i + 1:i + block_size + 1] for i in ix])
     return x, y
 
 xb, yb = get_batch('train')
