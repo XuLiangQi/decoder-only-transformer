@@ -3,6 +3,7 @@ import torch
 
 # Load custom modules
 from tools.txt_loader import load_text
+from tools.get_batch import get_batch
 from models.bigram_language_model import BigramLanguageModel as BLM
 
 # Check and assign GPU (CUDA) or MPS (Apple Metal) if available
@@ -33,7 +34,7 @@ for i, ch in enumerate(all_chars):
     itos[i] = ch
 
 encode = lambda s : [stoi[c] for c in s]
-decode = lambda i : [itos[n] for n in i]
+decode = lambda l : ''.join([itos[i] for i in l])   # ''.join connects tuples with '' and convert them into string
 # print(encode("Hello World!"))
 # print(decode(encode("Hello World!")))
 
@@ -62,14 +63,7 @@ torch.manual_seed(1337)
 batch_size = 4  # How many independent sequences will we precess in parallel
 block_size = 8  # What is the maximum context length for predictions
 
-def get_batch(split):
-    temp_data = train_data if split == 'train' else val_data
-    ix = torch.randint(len(temp_data) - block_size, (batch_size,))
-    x = torch.stack([temp_data[i:i + block_size] for i in ix])
-    y = torch.stack([temp_data[i + 1:i + block_size + 1] for i in ix])
-    return x, y
-
-xb, yb = get_batch('train')
+xb, yb = get_batch('train', train_data, val_data, batch_size, block_size)
 print('Inputs:')
 print(xb.shape)
 print(xb)
@@ -87,3 +81,9 @@ m = BLM(vocab_size, device)
 logits, loss = m.forward(xb, yb)
 print(logits.shape)
 print(loss)
+
+# idx = torch.zeros((1, 1), dtype = torch.long, device = device)
+print(decode(m.generate(torch.zeros((1, 1), dtype = torch.long, device = device), max_new_tokens=100)[0].tolist()))
+
+m.train('train', train_data, val_data, batch_size, block_size)
+print(decode(m.generate(torch.zeros((1, 1), dtype = torch.long, device = device), max_new_tokens=100)[0].tolist()))
