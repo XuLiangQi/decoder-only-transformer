@@ -1,5 +1,6 @@
 # Load third-party modules
 import torch
+from torch.nn import functional as F
 
 # Load custom modules
 from tools.txt_loader import load_text
@@ -27,7 +28,7 @@ text = load_text(text_dir)
 all_chars = set(text)
 all_chars_in_list = list(all_chars)
 all_chars_in_list_sorted = sorted(all_chars_in_list)
-vocab_size = len(all_chars_in_list_sorted) 
+vocab_size = len(all_chars_in_list_sorted)
 #print(all_chars_in_list_sorted)
 #print("Total # vocabs: " + str(vocab_size))
 
@@ -43,7 +44,7 @@ decode = lambda l : ''.join([itos[i] for i in l])   # ''.join connects tuples wi
 # print(encode("Hello World!"))
 # print(decode(encode("Hello World!")))
 
-# Convert text into tensor 
+# Convert text into tensor
 data = torch.tensor(encode(text), dtype=torch.long, device=device)
 # print(data.shape, data.dtype)
 # print(data[:1000])
@@ -80,13 +81,42 @@ print(yb)
 #         target = yb[b, t]
 #         print(f"When input is {context.tolist()} the target: {target}")
 
-m = BLM(vocab_size, device)
+m = BLM(device)
 logits, loss = m.forward(xb, yb)
 print(logits.shape)
 print(loss)
 
-# idx = torch.zeros((1, 1), dtype = torch.long, device = device)
-print(decode(m.generate(torch.zeros((1, 1), dtype = torch.long, device = device), max_new_tokens=100)[0].tolist()))
+# # idx = torch.zeros((1, 1), dtype = torch.long, device = device)
+# print(decode(m.generate(torch.zeros((1, 1), dtype = torch.long, device = device), max_new_tokens=100)[0].tolist()))
+#
+# m.train(train_data, batch_size, block_size)
+# print(decode(m.generate(torch.zeros((1, 1), dtype = torch.long, device = device), max_new_tokens=100)[0].tolist()))
 
-m.train(train_data, val_data, batch_size, block_size)
-print(decode(m.generate(torch.zeros((1, 1), dtype = torch.long, device = device), max_new_tokens=100)[0].tolist()))
+# Version 1
+torch.manual_seed(1337)
+B, T, C = 4, 8, 2
+x = torch.randn(B, T, C)
+xbow = torch.zeros((B, T, C))
+for b in range(B):
+    for t in range(T):
+        xprev = x[b, :t+1]  # (t, C)
+        xbow[b, t] = torch.mean(xprev, 0)   # Averaging out the 0 dimension
+print(x.shape)
+print(x[0])     # Print 0th batch of elements
+print(xbow[0])
+
+# Version 2
+weights = torch.tril(torch.ones(T, T))
+weights = weights / weights.sum(1, keepdim=True)
+xbow2 = weights @ x  # (B, T, T) @ (B, T, C)
+print(xbow2[0])
+print(torch.allclose(xbow, xbow2))
+
+# Version 3
+tril = torch.tril(torch.ones(T, T))
+weights = torch.zeros((T, T))
+print(weights)
+weights = weights.masked_fill(tril == 0, float('-inf'))  # Fill all element in tril where is 0 to negative infinity
+print(weights)
+weights = F.softmax(weights, dim=1)
+print(weights)

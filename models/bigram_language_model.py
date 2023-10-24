@@ -12,20 +12,25 @@ max_iters = 3000
 eval_interval = 300
 learning_rate = 1e-2
 eval_iters = 200
+vocab_size = 65
+n_embd = 32
 
 class BigramLanguageModel(nn.Module):
-    def __init__(self, vocab_size, device):
+    def __init__(self, device):
         super().__init__()
         self.device = device
         # Each token directly reads off the logits for the next token from a lookup table
         # Initializing the embedding table with size of vocab_size**2
-        self.token_embedding_table = nn.Embedding(vocab_size, vocab_size, device=self.device)
+        self.token_embedding_table = nn.Embedding(vocab_size, vocab_size, n_embd, self.device)
+        self.lm_head = nn.Linear(n_embd, vocab_size)
 
     def forward(self, idx, targets=None):
         # idx and targets are both (B, T) tensor of integers
-        logits = self.token_embedding_table(idx)    # (B, T, C), in this case (4 (batch_size), 8 (block_size), 65(vocab_size))
-                                                    # becase idx is (B, T), and each element from "idx" will go in token_embedding_table
-                                                    # and get a row of data (1, 65(C))
+        tok_emb = self.token_embedding_table(idx)    # (B, T, C), in this case (4 (batch_size), 8 (block_size), 65(vocab_size))
+                                                     # becase idx is (B, T), and each element from "idx" will go in token_embedding_table
+                                                     # and get a row of data (1, 65(C))
+
+        logits = self.lm_head(tok_emb)               # (B, T, vocab_size)
 
         if targets is not None:
             B, T, C = logits.shape
@@ -55,7 +60,7 @@ class BigramLanguageModel(nn.Module):
 
         return idx
 
-    def train(self, train_data, val_data, batch_size, block_size):
+    def train(self, train_data, batch_size, block_size):
         optimizer = torch.optim.AdamW(self.parameters(), lr = 1e-3)
         # batch_size = 32
         for iter in range(max_iters):
@@ -68,28 +73,6 @@ class BigramLanguageModel(nn.Module):
             loss.backward()
             optimizer.step()
 
-            # # Print loss every 1000 steps
-            # if steps % 1000 == 0:
-            #     print(loss.item())
-
-            if iter % eval_interval == 0:
-                losses = self.estimate_loss(train_data, val_data)
-                print(f"Step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
-
-    @torch.no_grad()
-    def estimate_loss(self, train, test):
-        out = {}
-        self.eval()
-        for split in ['train', 'val']:
-            losses = torch.zeros(eval_iters)
-            for k in range(eval_iters):
-                if split == 'train':
-                    data = train
-                else:
-                    data = test
-                X, Y = get_batch(data, batch_size, block_size)
-                logits, loss = self.forward(X, Y)
-                losses[k] = loss.item()
-                out[split] = losses.mean()
-        self.train()
-        return out
+            # Print loss every 1000 steps
+            if iter % 1000 == 0:
+                print(loss.item())
