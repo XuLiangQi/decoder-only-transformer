@@ -91,32 +91,3 @@ print(decode(m.generate(torch.zeros((1, 1), dtype = torch.long, device = device)
 
 m.train(train_data, batch_size, block_size)
 print(decode(m.generate(torch.zeros((1, 1), dtype = torch.long, device = device), max_new_tokens=100)[0].tolist()))
-
-# Version 1
-torch.manual_seed(1337)
-B, T, C = 4, 8, 2
-x = torch.randn(B, T, C)
-xbow = torch.zeros((B, T, C))
-for b in range(B):
-    for t in range(T):
-        xprev = x[b, :t+1]  # (t, C)
-        xbow[b, t] = torch.mean(xprev, 0)   # Averaging out the 0 dimension
-print(x.shape)
-print(x[0])     # Print 0th batch of elements
-print(xbow[0])
-
-# Version 2
-weights = torch.tril(torch.ones(T, T))
-weights = weights / weights.sum(1, keepdim=True)
-xbow2 = weights @ x  # (B, T, T) @ (B, T, C)
-print(xbow2[0])
-print(torch.allclose(xbow, xbow2))
-
-# Version 3
-tril = torch.tril(torch.ones(T, T))
-weights = torch.zeros((T, T))
-print(weights)
-weights = weights.masked_fill(tril == 0, float('-inf'))  # Fill all element in tril where is 0 to negative infinity
-print(weights)
-weights = F.softmax(weights, dim=1)
-print(weights)

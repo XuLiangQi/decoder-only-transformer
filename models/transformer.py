@@ -4,7 +4,16 @@ from torch.nn import functional as F
 
 from tools.get_batch import get_batch
 
+torch.manual_seed(1337)
+
+batch_size = 4  # How many independent sequences will we precess in parallel
+block_size = 8  # What is the maximum context length for predictions
+max_iters = 3000
+eval_interval = 300
+learning_rate = 1e-2
+eval_iters = 200
 vocab_size = 65
+n_embd = 32
 
 class BigramLanguageModel(nn.Module):
     def __init__(self, device):
@@ -12,13 +21,19 @@ class BigramLanguageModel(nn.Module):
         self.device = device
         # Each token directly reads off the logits for the next token from a lookup table
         # Initializing the embedding table with size of vocab_size**2
-        self.token_embedding_table = nn.Embedding(vocab_size, vocab_size, device=device)
+        self.token_embedding_table = nn.Embedding(vocab_size, n_embd, device=device)
+        self.position_embedding_table = nn.Embedding(block_size, n_embd)
+        self.lm_head = nn.Linear(n_embd, vocab_size)
 
     def forward(self, idx, targets=None):
+        B, T = idx.shape
         # idx and targets are both (B, T) tensor of integers
-        logits = self.token_embedding_table(idx)    # (B, T, C), in this case (4 (batch_size), 8 (block_size), 65(vocab_size))
+        tok_emb = self.token_embedding_table(idx)    # (B, T, C), in this case (4 (batch_size), 8 (block_size), 65(vocab_size))
                                                      # becase idx is (B, T), and each element from "idx" will go in token_embedding_table
-                                                     # and get a row of data (1, 65(C))          # (B, T, vocab_size)
+                                                     # and get a row of data (1, 65(C))
+        pos_emb = self.position_embedding_table(torch.arange(T, device=self.device))       # (T, C)                               
+        x = tok_emb + pos_emb       # (B, T, C)
+        logits = self.lm_head(x)               # (B, T, vocab_size)
 
         if targets is not None:
             B, T, C = logits.shape
@@ -51,7 +66,7 @@ class BigramLanguageModel(nn.Module):
     def train(self, train_data, batch_size, block_size):
         optimizer = torch.optim.AdamW(self.parameters(), lr = 1e-3)
         # batch_size = 32
-        for iter in range(10000):
+        for iter in range(max_iters):
             # Sample a batch of data
             xb, yb = get_batch(train_data, batch_size, block_size)
 
