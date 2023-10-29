@@ -35,6 +35,15 @@ class Head(nn.Module):
 
         return out
 
+class MultiHead(nn.Module):
+    def __init__(self, num_heads, head_size):
+        super().__init__()
+        self.heads = nn.ModuleList([Head(head_size) for _ in range(num_heads)])
+
+    def forward(self, x):
+        return torch.cat([head(x) for head in self.heads], dim=-1)
+
+
 class TransformerModel(nn.Module):
     def __init__(self, device):
         super().__init__()
@@ -43,7 +52,7 @@ class TransformerModel(nn.Module):
         # Initializing the embedding table with size of vocab_size**2
         self.token_embedding_table = nn.Embedding(vocab_size, n_embd, device=device)
         self.position_embedding_table = nn.Embedding(block_size, n_embd)
-        self.head = Head(n_embd)
+        self.head = MultiHead(4, int(n_embd/4))
         self.lm_head = nn.Linear(n_embd, vocab_size)
 
     def forward(self, idx, targets=None):
