@@ -6,6 +6,7 @@ from torch.nn import functional as F
 from tools.txt_loader import load_text
 from tools.get_batch import get_batch
 from models.bigram_language_model import BigramLanguageModel as BLM
+from models.transformer_model import TransformerModel as TM
 
 
 batch_size = 4  # How many independent sequences will we precess in parallel
@@ -81,7 +82,7 @@ print(yb)
 #         target = yb[b, t]
 #         print(f"When input is {context.tolist()} the target: {target}")
 
-m = BLM(device)
+m = TM(device)
 logits, loss = m.forward(xb, yb)
 print(logits.shape)
 print(loss)

@@ -1,5 +1,6 @@
 # Load third-party modules
 import torch
+import torch.nn as nn
 from torch.nn import functional as F
 
 # Load custom modules
@@ -81,3 +82,29 @@ weights = weights.masked_fill(tril == 0, float('-inf'))  # Fill all element in t
 print(weights)
 weights = F.softmax(weights, dim=1)
 print(weights)
+
+# Version 4
+# Self-attention
+head_size = 16
+B, T, C = 4, 8, 32  # Batch, Time, Channels
+x = torch.randn(B, T, C)
+
+key = nn.Linear(C, head_size, bias=False)
+query = nn.Linear(C, head_size, bias=False)
+value = nn.Linear(C, head_size, bias=False)
+
+k = key(x)
+q = query(x)
+v = value(x)
+
+wei = q @ k.transpose(-2, -1) * head_size**-0.5     # (B, T, C) @ (B, C, T) = (B, T, T)
+                                                    # * head_size**-0.5 is scale, used to normalize the wei
+print(wei[0])
+tri = torch.tril(torch.ones(T, T))
+print(tri)
+wei = wei.masked_fill(tri==0, float('-inf'))    # -inf to not allow each node to communicates with later nodes
+print(wei[0])
+wei = F.softmax(wei, dim=1)
+print(wei[0])
+out = wei @ v       # (B, T, T) @ (B, T, C) = (B, T, C)
+print(out.shape)

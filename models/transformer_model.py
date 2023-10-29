@@ -4,18 +4,38 @@ from torch.nn import functional as F
 
 from tools.get_batch import get_batch
 
-torch.manual_seed(1337)
-
 batch_size = 4  # How many independent sequences will we precess in parallel
 block_size = 8  # What is the maximum context length for predictions
-max_iters = 3000
+max_iters = 5000
 eval_interval = 300
-learning_rate = 1e-2
+learning_rate = 1e-3
 eval_iters = 200
 vocab_size = 65
 n_embd = 32
 
-class BigramLanguageModel(nn.Module):
+class Head(nn.Module):
+    def __init__(self,head_size):
+        super().__init__()
+        self.query = nn.Linear(n_embd, head_size, bias=False)
+        self.key = nn.Linear(n_embd, head_size, bias=False)
+        self.value = nn.Linear(n_embd, head_size, bias=False)
+        self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
+
+    def forward(self, x):
+        B, T, C = x.shape
+        q = self.query(x)
+        k = self.key(x)
+        v = self.value(x)
+
+        wei = q @ k.transpose(-2, -1) * C**-0.5
+        wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf'))
+        wei = F.softmax(wei, dim=1)
+
+        out = wei @ v
+
+        return out
+
+class TransformerModel(nn.Module):
     def __init__(self, device):
         super().__init__()
         self.device = device
@@ -23,6 +43,7 @@ class BigramLanguageModel(nn.Module):
         # Initializing the embedding table with size of vocab_size**2
         self.token_embedding_table = nn.Embedding(vocab_size, n_embd, device=device)
         self.position_embedding_table = nn.Embedding(block_size, n_embd)
+        self.head = Head(n_embd)
         self.lm_head = nn.Linear(n_embd, vocab_size)
 
     def forward(self, idx, targets=None):
@@ -33,6 +54,7 @@ class BigramLanguageModel(nn.Module):
                                                      # and get a row of data (1, 65(C))
         pos_emb = self.position_embedding_table(torch.arange(T, device=self.device))       # (T, C)                               
         x = tok_emb + pos_emb       # (B, T, C)
+        x = self.head(x)
         logits = self.lm_head(x)               # (B, T, vocab_size)
 
         if targets is not None:
@@ -50,8 +72,9 @@ class BigramLanguageModel(nn.Module):
     def generate(self, idx, max_new_tokens):
         # idx is (B, T) array of indices in the current context
         for _ in range(max_new_tokens):
+            idx_cond = idx[:, -block_size:]
             # Get the predictions
-            logits, _ = self.forward(idx)
+            logits, _ = self.forward(idx_cond)
             # Focus only on the last time step
             logits = logits[:, -1, :]   # becomes (B, C)
             # Apply softmax to get probabilities
@@ -64,7 +87,7 @@ class BigramLanguageModel(nn.Module):
         return idx
 
     def train(self, train_data, batch_size, block_size):
-        optimizer = torch.optim.AdamW(self.parameters(), lr = 1e-3)
+        optimizer = torch.optim.AdamW(self.parameters(), lr = learning_rate)
         # batch_size = 32
         for iter in range(max_iters):
             # Sample a batch of data
