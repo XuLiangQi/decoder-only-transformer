@@ -43,6 +43,14 @@ class MultiHead(nn.Module):
     def forward(self, x):
         return torch.cat([head(x) for head in self.heads], dim=-1)
 
+class FeedForward(nn.Module):
+    def __init__(self, n_embd):
+        super().__init__()
+        self.net = nn.Sequential(nn.Linear(n_embd, n_embd),
+                                    nn.ReLU())
+    
+    def forward(self, x):
+        return self.net(x)
 
 class TransformerModel(nn.Module):
     def __init__(self, device):
@@ -53,6 +61,7 @@ class TransformerModel(nn.Module):
         self.token_embedding_table = nn.Embedding(vocab_size, n_embd, device=device)
         self.position_embedding_table = nn.Embedding(block_size, n_embd)
         self.head = MultiHead(4, int(n_embd/4))
+        self.net = FeedForward(n_embd)
         self.lm_head = nn.Linear(n_embd, vocab_size)
 
     def forward(self, idx, targets=None):
@@ -64,6 +73,7 @@ class TransformerModel(nn.Module):
         pos_emb = self.position_embedding_table(torch.arange(T, device=self.device))       # (T, C)                               
         x = tok_emb + pos_emb       # (B, T, C)
         x = self.head(x)
+        x = self.net(x)
         logits = self.lm_head(x)               # (B, T, vocab_size)
 
         if targets is not None:
