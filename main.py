@@ -13,13 +13,10 @@ batch_size = 4  # How many independent sequences will we precess in parallel
 block_size = 8  # What is the maximum context length for predictions
 
 # Check and assign GPU (CUDA) or MPS (Apple Metal) if available
-device = torch.device("cpu")
 if torch.cuda.is_available():
-    device = torch.device("cuda")
+    torch.set_default_device('cuda')
 elif torch.backends.mps.is_available():
-    # Disabled due to bus error caused by mps backend
-    pass
-    #device = torch.device("mps")
+    torch.set_default_device("mps")
 
 # Read tiny shakespear txt file
 text_dir = "data/tinyShakespeare.txt"
@@ -46,7 +43,7 @@ decode = lambda l : ''.join([itos[i] for i in l])   # ''.join connects tuples wi
 # print(decode(encode("Hello World!")))
 
 # Convert text into tensor
-data = torch.tensor(encode(text), dtype=torch.long, device=device)
+data = torch.tensor(encode(text), dtype=torch.long)
 # print(data.shape, data.dtype)
 # print(data[:1000])
 
@@ -82,13 +79,13 @@ print(yb)
 #         target = yb[b, t]
 #         print(f"When input is {context.tolist()} the target: {target}")
 
-m = TM(device)
+m = TM()
 logits, loss = m.forward(xb, yb)
 print(logits.shape)
 print(loss)
 
-# idx = torch.zeros((1, 1), dtype = torch.long, device = device)
-print(decode(m.generate(torch.zeros((1, 1), dtype = torch.long, device = device), max_new_tokens=100)[0].tolist()))
+# idx = torch.zeros((1, 1), dtype = torch.long)
+print(decode(m.generate(torch.zeros((1, 1), dtype = torch.long), max_new_tokens=100)[0].tolist()))
 
 m.train(train_data, batch_size, block_size)
-print(decode(m.generate(torch.zeros((1, 1), dtype = torch.long, device = device), max_new_tokens=100)[0].tolist()))
+print(decode(m.generate(torch.zeros((1, 1), dtype = torch.long), max_new_tokens=100)[0].tolist()))
