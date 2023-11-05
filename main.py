@@ -16,7 +16,9 @@ block_size = 8  # What is the maximum context length for predictions
 if torch.cuda.is_available():
     torch.set_default_device('cuda')
 elif torch.backends.mps.is_available():
-    torch.set_default_device("mps")
+    # Use CPU due to bug
+    pass
+    # torch.set_default_device("mps")
 
 # Read tiny shakespear txt file
 text_dir = "data/tinyShakespeare.txt"

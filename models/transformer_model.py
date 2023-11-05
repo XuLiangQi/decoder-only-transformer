@@ -4,14 +4,14 @@ from torch.nn import functional as F
 
 from tools.get_batch import get_batch
 
-batch_size = 4  # How many independent sequences will we precess in parallel
-block_size = 8  # What is the maximum context length for predictions
-max_iters = 5000
-eval_interval = 300
-learning_rate = 1e-3
+batch_size = 4          # How many independent sequences will we precess in parallel
+block_size = 8          # What is the maximum context length for predictions
+max_iters = 5000        # How many steps the model will be training for
+eval_interval = 300     # Print out the loss every "eval_interval" steps
+learning_rate = 1e-3    # The model's learning rate
 eval_iters = 200
-vocab_size = 65
-n_embd = 32
+vocab_size = 65         # Length of the vector of each token after embedding
+n_embd = 32             
 
 class Head(nn.Module):
     def __init__(self,head_size):
@@ -23,15 +23,15 @@ class Head(nn.Module):
 
     def forward(self, x):
         B, T, C = x.shape
-        q = self.query(x)
+        q = self.query(x)   # (B, T, head_size)
         k = self.key(x)
         v = self.value(x)
 
-        wei = q @ k.transpose(-2, -1) * C**-0.5
-        wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf'))
-        wei = F.softmax(wei, dim=1)
+        wei = q @ k.transpose(-2, -1) * C**-0.5     # only transpose T & C channel, wei = (B, T, head_size) dot (B, T, head_size) = (B, T, T)
+        wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf'))    # Avoid attentions to certain elements
+        wei = F.softmax(wei, dim=-1)     # Convert into probabilities, on the last dimension of the wei tensor
 
-        out = wei @ v
+        out = wei @ v   #  Use the calculated attention probabilities (wei) to weigh the values (v)
 
         return out
 
@@ -66,7 +66,7 @@ class TransformerModel(nn.Module):
     def forward(self, idx, targets=None):
         B, T = idx.shape
         # idx and targets are both (B, T) tensor of integers
-        tok_emb = self.token_embedding_table(idx)    # (B, T, C), in this case (4 (batch_size), 8 (block_size), 65(vocab_size))
+        tok_emb = self.token_embedding_table(idx)    # (B, T, C), in this case (4 (batch_size), 8 (block_size), 65(n_embd))
                                                      # becase idx is (B, T), and each element from "idx" will go in token_embedding_table
                                                      # and get a row of data (1, 65(C))
         pos_emb = self.position_embedding_table(torch.arange(T))       # (T, C)
@@ -117,6 +117,6 @@ class TransformerModel(nn.Module):
             loss.backward()
             optimizer.step()
 
-            # Print loss every 1000 steps
-            if iter % 1000 == 0:
+            # Print loss every "eval_interval" steps
+            if iter % eval_interval == 0:
                 print(loss.item())

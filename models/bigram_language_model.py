@@ -7,12 +7,11 @@ from tools.get_batch import get_batch
 vocab_size = 65
 
 class BigramLanguageModel(nn.Module):
-    def __init__(self, device):
+    def __init__(self):
         super().__init__()
-        self.device = device
         # Each token directly reads off the logits for the next token from a lookup table
         # Initializing the embedding table with size of vocab_size**2
-        self.token_embedding_table = nn.Embedding(vocab_size, vocab_size, device=device)
+        self.token_embedding_table = nn.Embedding(vocab_size, vocab_size)
 
     def forward(self, idx, targets=None):
         # idx and targets are both (B, T) tensor of integers
