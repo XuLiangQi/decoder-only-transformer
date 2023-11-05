@@ -11,6 +11,7 @@ from models.transformer_model import TransformerModel as TM
 
 batch_size = 4  # How many independent sequences will we precess in parallel
 block_size = 8  # What is the maximum context length for predictions
+max_tokens = 500
 
 # Check and assign GPU (CUDA) or MPS (Apple Metal) if available
 if torch.cuda.is_available():
@@ -87,7 +88,7 @@ print(logits.shape)
 print(loss)
 
 # idx = torch.zeros((1, 1), dtype = torch.long)
-print(decode(m.generate(torch.zeros((1, 1), dtype = torch.long), max_new_tokens=100)[0].tolist()))
+print(decode(m.generate(torch.zeros((1, 1), dtype = torch.long), max_new_tokens=max_tokens)[0].tolist()))
 
-m.train(train_data, batch_size, block_size)
-print(decode(m.generate(torch.zeros((1, 1), dtype = torch.long), max_new_tokens=100)[0].tolist()))
+m.train(train_data, val_data, batch_size, block_size)
+print(decode(m.generate(torch.zeros((1, 1), dtype = torch.long), max_new_tokens=max_tokens)[0].tolist()))
