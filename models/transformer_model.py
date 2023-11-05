@@ -11,7 +11,6 @@ import yaml
 with open('hyps/hyps-large_model.yaml', 'r') as yaml_file:
     hyps = yaml.safe_load(yaml_file)
 
-
 class Head(nn.Module):
     def __init__(self, n_embd, head_size):
         super().__init__()
@@ -75,13 +74,12 @@ class Block(nn.Module):
         x = x + self.sa.forward(self.ln1(x))
         x = x + self.ffwd.forward(self.ln2(x))
         return x
-
 class TransformerModel(nn.Module):
-    def __init__(self):
+    def __init__(self, vocab_size):
         super().__init__()
         # Each token directly reads off the logits for the next token from a lookup table
         # Initializing the embedding table with size of vocab_size**2
-        self.token_embedding_table = nn.Embedding(hyps['vocab_size'], hyps['embedding_dimensions'])
+        self.token_embedding_table = nn.Embedding(vocab_size, hyps['embedding_dimensions'])
         self.position_embedding_table = nn.Embedding(hyps['block_size'], hyps['embedding_dimensions'])
         # self.head = MultiHead(4, int(embedding_dimensions / 4), embedding_dimensions)     # 4 communication channels (number of self-attention heads)
         #                                                       # , 8 dimensions (head_size)
@@ -89,16 +87,16 @@ class TransformerModel(nn.Module):
         # self.block = Block(embedding_dimensions, n_head=4)    # Single block
         self.blocks = nn.Sequential(*[Block(hyps['embedding_dimensions'], n_head=hyps['n_head']) for _ in range(hyps['n_layers'])])
         self.ln = nn.LayerNorm(hyps['embedding_dimensions'])
-        self.lm_head = nn.Linear(hyps['embedding_dimensions'], hyps['vocab_size'])
-        self.apply(self._init_weights)
-
-    def _init_weights(self, module):
-        if isinstance(module, nn.Linear):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
-            if module.bias is not None:
-                torch.nn.init.zeros_(module.bias)
-        elif isinstance(module, nn.Embedding):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+        self.lm_head = nn.Linear(hyps['embedding_dimensions'], vocab_size)
+    #     self.apply(self._init_weights)
+    #
+    # def _init_weights(self, module):
+    #     if isinstance(module, nn.Linear):
+    #         torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+    #         if module.bias is not None:
+    #             torch.nn.init.zeros_(module.bias)
+    #     elif isinstance(module, nn.Embedding):
+    #         torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def forward(self, idx, targets=None):
         B, T = idx.shape
@@ -142,27 +140,3 @@ class TransformerModel(nn.Module):
             idx = torch.cat((idx, idx_next), dim = 1)      # (B, T+1)
 
         return idx
-
-    def train(self, train_data, val_data, batch_size, block_size):
-        optimizer = torch.optim.AdamW(self.parameters(), lr = hyps['learning_rate'])
-        train_loss = float('inf')
-        val_loss = float('inf')
-
-        for iter in range(hyps['max_iters']):
-            # Sample a batch of data
-            xb, yb = get_batch(train_data, batch_size, block_size)
-            xbv, ybv = get_batch(val_data, batch_size, block_size)
-
-            # Evaluate the loss
-            _, train_loss = self.forward(xb, yb)
-            _, val_loss = self.forward(xbv, ybv)
-
-            optimizer.zero_grad(set_to_none = True)
-            train_loss.backward()
-            optimizer.step()
-
-            # Print loss every "eval_interval" steps
-            if iter % hyps['eval_interval'] == 0:
-                print(f"train_loss: {train_loss.item():.4f}, val_loss: {val_loss.item():.4f}, step: {iter}/{hyps['max_iters']}")
-
-        print(f"train_loss: {train_loss.item():.4f}, val_loss: {val_loss.item():.4f}, step: {hyps['max_iters']}/{hyps['max_iters']}")

@@ -4,7 +4,6 @@ max_iters: 5000            # How many steps the model will be training for
 eval_interval: 500         # Print out the loss every "eval_interval" steps
 learning_rate: 0.0003      #The model's learning rate
 eval_iters: 200
-vocab_size: 65             # Length of the vector of each token after embedding
 embedding_dimensions: 384   # Represents the dimensionality of the feature vectors for each element in the input sequence
 n_head: 6                   # Number of head in each block
 n_layers: 6                 # Number of Blocks

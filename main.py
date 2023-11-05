@@ -8,9 +8,15 @@ from tools.get_batch import get_batch
 from models.bigram_language_model import BigramLanguageModel as BLM
 from models.transformer_model import TransformerModel as TM
 
+import yaml
 
-batch_size = 4  # How many independent sequences will we precess in parallel
-block_size = 8  # What is the maximum context length for predictions
+# with open('hyps/hyps-small_model.yaml', 'r') as yaml_file:
+#     hyps = yaml.safe_load(yaml_file)
+with open('hyps/hyps-large_model.yaml', 'r') as yaml_file:
+    hyps = yaml.safe_load(yaml_file)
+
+batch_size = hyps['batch_size']  # How many independent sequences will we precess in parallel
+block_size = hyps['block_size']  # What is the maximum context length for predictions
 max_tokens = 500
 
 # Check and assign GPU (CUDA) or MPS (Apple Metal) if available
@@ -30,8 +36,6 @@ all_chars = set(text)
 all_chars_in_list = list(all_chars)
 all_chars_in_list_sorted = sorted(all_chars_in_list)
 vocab_size = len(all_chars_in_list_sorted)
-#print(all_chars_in_list_sorted)
-#print("Total # vocabs: " + str(vocab_size))
 
 # A simple encoder/decoder
 stoi = {}
@@ -42,53 +46,55 @@ for i, ch in enumerate(all_chars):
 
 encode = lambda s : [stoi[c] for c in s]
 decode = lambda l : ''.join([itos[i] for i in l])   # ''.join connects tuples with '' and convert them into string
-# print(encode("Hello World!"))
-# print(decode(encode("Hello World!")))
+
 
 # Convert text into tensor
 data = torch.tensor(encode(text), dtype=torch.long)
-# print(data.shape, data.dtype)
-# print(data[:1000])
 
 # Set up a threshold to split data into 90% train, 10% test
 train_test_thres = int(0.9 * len(data))
 train_data = data[:train_test_thres]
 val_data = data[train_test_thres:]
 
-# # Break text into chunks
-# block_size = 8
-# print(train_data[:block_size + 1])
-
-# x = train_data[:block_size]
-# y = train_data[1:block_size + 1]
-# for t in range(block_size):
-#     context = x[:t + 1]
-#     target = y[t]
-#     print(f"When input is {context} the target is : {target}")
-
 torch.manual_seed(1337)
 
-xb, yb = get_batch(train_data, batch_size, block_size)
-print('Inputs:')
-print(xb.shape)
-print(xb)
-print('Targets:')
-print(yb.shape)
-print(yb)
-
-# for b in range(batch_size):
-#     for t in range(block_size):
-#         context = xb[b, :t+1]
-#         target = yb[b, t]
-#         print(f"When input is {context.tolist()} the target: {target}")
-
-m = TM()
-# logits, loss = m.forward(xb, yb)
-# print(logits.shape)
-# print(loss)
-
+model = TM(vocab_size)
 # idx = torch.zeros((1, 1), dtype = torch.long)
-print(decode(m.generate(torch.zeros((1, 1), dtype = torch.long), max_new_tokens=max_tokens)[0].tolist()))
+print(decode(model.generate(torch.zeros((1, 1), dtype = torch.long), max_new_tokens=max_tokens)[0].tolist()))
+@torch.no_grad()
+def estimate_loss():
+    out = {}
+    model.eval()
+    for split in ['train', 'val']:
+        losses = torch.zeros(hyps['eval_iters'])
+        for k in range(hyps['eval_iters']):
+            if split =='train':
+                X, Y = get_batch(train_data, hyps['batch_size'], hyps['block_size'])
+            else:
+                X, Y = get_batch(val_data, hyps['batch_size'], hyps['block_size'])
+            _, loss = model(X, Y)
+            losses[k] = loss.item()
+        out[split] = losses.mean()
+    model.train()
+    return out
 
-m.train(train_data, val_data, batch_size, block_size)
-print(decode(m.generate(torch.zeros((1, 1), dtype = torch.long), max_new_tokens=max_tokens)[0].tolist()))
+def train():
+    optimizer = torch.optim.AdamW(model.parameters(), lr=hyps['learning_rate'])
+
+    for iter in range(hyps['max_iters']):
+        # Sample a batch of data
+        xb, yb = get_batch(train_data, batch_size, block_size)
+
+        # Evaluate the loss
+        _, train_loss = model.forward(xb, yb)
+
+        optimizer.zero_grad(set_to_none=True)
+        train_loss.backward()
+        optimizer.step()
+
+        if iter % hyps['eval_interval'] == 0 or iter == hyps['max_iters'] - 1:
+            losses = estimate_loss()
+            print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+
+train()
+print(decode(model.generate(torch.zeros((1, 1), dtype = torch.long), max_new_tokens=max_tokens)[0].tolist()))
