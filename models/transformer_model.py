@@ -4,17 +4,13 @@ from torch.nn import functional as F
 
 from tools.get_batch import get_batch
 
-batch_size = 4              # How many independent sequences will we precess in parallel
-block_size = 8              # What is the maximum context length for predictions
-max_iters = 5000            # How many steps the model will be training for
-eval_interval = 500         # Print out the loss every "eval_interval" steps
-learning_rate = 1e-3        # The model's learning rate
-eval_iters = 200
-vocab_size = 65             # Length of the vector of each token after embedding
-embedding_dimensions = 32   # Represents the dimensionality of the feature vectors for each element in the input sequence
-n_head = 4                   # Number of head in each block
-n_layers = 3
-dropout = 0.2
+import yaml
+
+# with open('hyps/hyps-small_model.yaml', 'r') as yaml_file:
+#     hyps = yaml.safe_load(yaml_file)
+with open('hyps/hyps-large_model.yaml', 'r') as yaml_file:
+    hyps = yaml.safe_load(yaml_file)
+
 
 class Head(nn.Module):
     def __init__(self, n_embd, head_size):
@@ -22,8 +18,8 @@ class Head(nn.Module):
         self.query = nn.Linear(n_embd, head_size, bias=False)
         self.key = nn.Linear(n_embd, head_size, bias=False)
         self.value = nn.Linear(n_embd, head_size, bias=False)
-        self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
-        self.dropout = nn.Dropout(dropout)
+        self.register_buffer('tril', torch.tril(torch.ones(hyps['block_size'], hyps['block_size'])))
+        self.dropout = nn.Dropout(hyps['dropout'])
 
     def forward(self, x):
         B, T, C = x.shape   # (batch_size, block_size, head_size)
@@ -31,7 +27,7 @@ class Head(nn.Module):
         k = self.key(x)     # (B, T, head_size)
         v = self.value(x)   # (B, T, head_size)
 
-        wei = q @ k.transpose(-2, -1) * (C**-0.5)     # Only transpose T & C channel
+        wei = q @ k.transpose(-2, -1) * (k.shape[-1]**-0.5)     # Only transpose T & C channel
                                                     # wei = (B, T, head_size) dot (B, T, head_size) = (B, T, T)
         wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf'))    # Avoid attentions to certain elements
         wei = F.softmax(wei, dim=-1)     # Convert into probabilities, on the last dimension of the wei tensor
@@ -45,8 +41,8 @@ class MultiHead(nn.Module):
     def __init__(self, num_heads, head_size, n_embd):
         super().__init__()
         self.heads = nn.ModuleList([Head(n_embd, head_size) for _ in range(num_heads)])
-        self.proj = nn.Linear(n_embd, n_embd)   # Linear transformation of the outcome of the multi-head layer
-        self.dropout = nn.Dropout(dropout)
+        self.proj = nn.Linear(head_size * num_heads, n_embd)   # Linear transformation of the outcome of the multi-head layer
+        self.dropout = nn.Dropout(hyps['dropout'])
 
     def forward(self, x):
         out = torch.cat([head.forward(x) for head in self.heads], dim=-1)
@@ -60,7 +56,7 @@ class FeedForward(nn.Module):
         self.net = nn.Sequential(nn.Linear(n_embd, 4 * n_embd),
                                     nn.ReLU(),
                                     nn.Linear(4 * n_embd, n_embd),
-                                    nn.Dropout(dropout)
+                                    nn.Dropout(hyps['dropout'])
         )
     
     def forward(self, x):
@@ -85,15 +81,24 @@ class TransformerModel(nn.Module):
         super().__init__()
         # Each token directly reads off the logits for the next token from a lookup table
         # Initializing the embedding table with size of vocab_size**2
-        self.token_embedding_table = nn.Embedding(vocab_size, embedding_dimensions)
-        self.position_embedding_table = nn.Embedding(block_size, embedding_dimensions)
+        self.token_embedding_table = nn.Embedding(hyps['vocab_size'], hyps['embedding_dimensions'])
+        self.position_embedding_table = nn.Embedding(hyps['block_size'], hyps['embedding_dimensions'])
         # self.head = MultiHead(4, int(embedding_dimensions / 4), embedding_dimensions)     # 4 communication channels (number of self-attention heads)
         #                                                       # , 8 dimensions (head_size)
         # self.net = FeedForward(embedding_dimensions)      # Adding computation on per-node level
         # self.block = Block(embedding_dimensions, n_head=4)    # Single block
-        self.blocks = nn.Sequential(*[Block(embedding_dimensions, n_head=n_head) for _ in range(n_layers)])
-        self.ln = nn.LayerNorm(embedding_dimensions)
-        self.lm_head = nn.Linear(embedding_dimensions, vocab_size)
+        self.blocks = nn.Sequential(*[Block(hyps['embedding_dimensions'], n_head=hyps['n_head']) for _ in range(hyps['n_layers'])])
+        self.ln = nn.LayerNorm(hyps['embedding_dimensions'])
+        self.lm_head = nn.Linear(hyps['embedding_dimensions'], hyps['vocab_size'])
+        self.apply(self._init_weights)
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def forward(self, idx, targets=None):
         B, T = idx.shape
@@ -124,7 +129,7 @@ class TransformerModel(nn.Module):
     def generate(self, idx, max_new_tokens):
         # idx is (B, T) array of indices in the current context
         for _ in range(max_new_tokens):
-            idx_cond = idx[:, -block_size:]
+            idx_cond = idx[:, -hyps['block_size']:]
             # Get the predictions
             logits, _ = self.forward(idx_cond)
             # Focus only on the last time step
@@ -139,11 +144,11 @@ class TransformerModel(nn.Module):
         return idx
 
     def train(self, train_data, val_data, batch_size, block_size):
-        optimizer = torch.optim.AdamW(self.parameters(), lr = learning_rate)
+        optimizer = torch.optim.AdamW(self.parameters(), lr = hyps['learning_rate'])
         train_loss = float('inf')
         val_loss = float('inf')
 
-        for iter in range(max_iters):
+        for iter in range(hyps['max_iters']):
             # Sample a batch of data
             xb, yb = get_batch(train_data, batch_size, block_size)
             xbv, ybv = get_batch(val_data, batch_size, block_size)
@@ -157,7 +162,7 @@ class TransformerModel(nn.Module):
             optimizer.step()
 
             # Print loss every "eval_interval" steps
-            if iter % eval_interval == 0:
-                print(f"train_loss: {train_loss.item():.4f}, val_loss: {val_loss.item():.4f}, step: {iter}/{max_iters}")
+            if iter % hyps['eval_interval'] == 0:
+                print(f"train_loss: {train_loss.item():.4f}, val_loss: {val_loss.item():.4f}, step: {iter}/{hyps['max_iters']}")
 
-        print(f"train_loss: {train_loss.item():.4f}, val_loss: {val_loss.item():.4f}, step: {max_iters}/{max_iters}")
+        print(f"train_loss: {train_loss.item():.4f}, val_loss: {val_loss.item():.4f}, step: {hyps['max_iters']}/{hyps['max_iters']}")
