@@ -1,2 +1,2 @@
 # aGPT
- A Chat Generative Pretrained Transformer
+ Generates text from given text file using decoder-only transformer model
