@@ -7,11 +7,14 @@ from tools.get_batch import get_batch
 batch_size = 4              # How many independent sequences will we precess in parallel
 block_size = 8              # What is the maximum context length for predictions
 max_iters = 5000            # How many steps the model will be training for
-eval_interval = 300         # Print out the loss every "eval_interval" steps
+eval_interval = 500         # Print out the loss every "eval_interval" steps
 learning_rate = 1e-3        # The model's learning rate
 eval_iters = 200
 vocab_size = 65             # Length of the vector of each token after embedding
 embedding_dimensions = 32   # Represents the dimensionality of the feature vectors for each element in the input sequence
+n_head = 4                   # Number of head in each block
+n_layers = 3
+dropout = 0.2
 
 class Head(nn.Module):
     def __init__(self, n_embd, head_size):
@@ -20,6 +23,7 @@ class Head(nn.Module):
         self.key = nn.Linear(n_embd, head_size, bias=False)
         self.value = nn.Linear(n_embd, head_size, bias=False)
         self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
         B, T, C = x.shape   # (batch_size, block_size, head_size)
@@ -31,8 +35,9 @@ class Head(nn.Module):
                                                     # wei = (B, T, head_size) dot (B, T, head_size) = (B, T, T)
         wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf'))    # Avoid attentions to certain elements
         wei = F.softmax(wei, dim=-1)     # Convert into probabilities, on the last dimension of the wei tensor
+        wei = self.dropout(wei)
 
-        out = wei @ v   # Use the calculated attention probabilities (wei) to weigh the values (v)
+        out = wei @ v   # Use the calculated attention probabilities (wei) to weigh the values (v))
 
         return out
 
@@ -41,10 +46,12 @@ class MultiHead(nn.Module):
         super().__init__()
         self.heads = nn.ModuleList([Head(n_embd, head_size) for _ in range(num_heads)])
         self.proj = nn.Linear(n_embd, n_embd)   # Linear transformation of the outcome of the multi-head layer
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
         out = torch.cat([head.forward(x) for head in self.heads], dim=-1)
         out = self.proj(out)
+        out = self.dropout(out)
         return out
 
 class FeedForward(nn.Module):
@@ -52,7 +59,8 @@ class FeedForward(nn.Module):
         super().__init__()
         self.net = nn.Sequential(nn.Linear(n_embd, 4 * n_embd),
                                     nn.ReLU(),
-                                    nn.Linear(4 * n_embd, n_embd)
+                                    nn.Linear(4 * n_embd, n_embd),
+                                    nn.Dropout(dropout)
         )
     
     def forward(self, x):
@@ -83,12 +91,8 @@ class TransformerModel(nn.Module):
         #                                                       # , 8 dimensions (head_size)
         # self.net = FeedForward(embedding_dimensions)      # Adding computation on per-node level
         # self.block = Block(embedding_dimensions, n_head=4)    # Single block
-        self.blocks = nn.Sequential(Block(embedding_dimensions, n_head=4),
-                                    Block(embedding_dimensions, n_head=4),
-                                    Block(embedding_dimensions, n_head=4),
-                                    nn.LayerNorm(embedding_dimensions)
-
-        )
+        self.blocks = nn.Sequential(*[Block(embedding_dimensions, n_head=n_head) for _ in range(n_layers)])
+        self.ln = nn.LayerNorm(embedding_dimensions)
         self.lm_head = nn.Linear(embedding_dimensions, vocab_size)
 
     def forward(self, idx, targets=None):
@@ -102,6 +106,7 @@ class TransformerModel(nn.Module):
         # x = self.head.forward(x)
         # x = self.net.forward(x)
         x = self.blocks.forward(x)
+        x = self.ln(x)
         logits = self.lm_head.forward(x)               # (B, T, vocab_size)
 
         if targets is not None:

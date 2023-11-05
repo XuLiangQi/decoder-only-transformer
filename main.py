@@ -83,9 +83,9 @@ print(yb)
 #         print(f"When input is {context.tolist()} the target: {target}")
 
 m = TM()
-logits, loss = m.forward(xb, yb)
-print(logits.shape)
-print(loss)
+# logits, loss = m.forward(xb, yb)
+# print(logits.shape)
+# print(loss)
 
 # idx = torch.zeros((1, 1), dtype = torch.long)
 print(decode(m.generate(torch.zeros((1, 1), dtype = torch.long), max_new_tokens=max_tokens)[0].tolist()))
