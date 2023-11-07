@@ -4,10 +4,8 @@ from torch.nn import functional as F
 
 from tools.get_batch import get_batch
 
-vocab_size = 65
-
 class BigramLanguageModel(nn.Module):
-    def __init__(self):
+    def __init__(self, vocab_size):
         super().__init__()
         # Each token directly reads off the logits for the next token from a lookup table
         # Initializing the embedding table with size of vocab_size**2
@@ -47,19 +45,3 @@ class BigramLanguageModel(nn.Module):
 
         return idx
 
-    def train(self, train_data, batch_size, block_size):
-        optimizer = torch.optim.AdamW(self.parameters(), lr = 1e-3)
-        # batch_size = 32
-        for iter in range(10000):
-            # Sample a batch of data
-            xb, yb = get_batch(train_data, batch_size, block_size)
-
-            # Evaluate the loss
-            _, loss = self.forward(xb, yb)
-            optimizer.zero_grad(set_to_none = True)
-            loss.backward()
-            optimizer.step()
-
-            # Print loss every 1000 steps
-            if iter % 1000 == 0:
-                print(loss.item())

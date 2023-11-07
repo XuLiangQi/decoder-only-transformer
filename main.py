@@ -10,10 +10,10 @@ from models.transformer_model import TransformerModel as TM
 
 import yaml
 
-# with open('hyps/hyps-small_model.yaml', 'r') as yaml_file:
-#     hyps = yaml.safe_load(yaml_file)
-with open('hyps/hyps-large_model.yaml', 'r') as yaml_file:
+with open('hyps/hyps-small_model.yaml', 'r') as yaml_file:
     hyps = yaml.safe_load(yaml_file)
+# with open('hyps/hyps-large_model.yaml', 'r') as yaml_file:
+#     hyps = yaml.safe_load(yaml_file)
 
 batch_size = hyps['batch_size']  # How many independent sequences will we precess in parallel
 block_size = hyps['block_size']  # What is the maximum context length for predictions
@@ -23,9 +23,7 @@ max_tokens = 500
 if torch.cuda.is_available():
     torch.set_default_device('cuda')
 elif torch.backends.mps.is_available():
-    # Use CPU due to bug
-    pass
-    # torch.set_default_device("mps")
+    torch.set_default_device("mps")
 
 # Read tiny shakespear txt file
 text_dir = "data/tinyShakespeare.txt"
@@ -58,7 +56,7 @@ val_data = data[train_test_thres:]
 
 torch.manual_seed(1337)
 
-model = TM(vocab_size)
+model = BLM(vocab_size)
 # idx = torch.zeros((1, 1), dtype = torch.long)
 print(decode(model.generate(torch.zeros((1, 1), dtype = torch.long), max_new_tokens=max_tokens)[0].tolist()))
 @torch.no_grad()
