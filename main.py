@@ -10,10 +10,21 @@ from models.transformer_model import TransformerModel as TM
 
 import yaml
 
-with open('hyps/hyps-small_model.yaml', 'r') as yaml_file:
-    hyps = yaml.safe_load(yaml_file)
-# with open('hyps/hyps-large_model.yaml', 'r') as yaml_file:
-#     hyps = yaml.safe_load(yaml_file)
+use_large_model_params = True
+save_model = False
+load_prev_model = True
+
+print(f"CONFIG: "
+      f"Is it large model: {use_large_model_params};\n"
+      f"Save the model: {save_model};\n"
+      f"Load previously saved model: {load_prev_model};\n")
+
+if use_large_model_params:
+    with open('hyps/hyps-large_model.yaml', 'r') as yaml_file:
+        hyps = yaml.safe_load(yaml_file)
+else:
+    with open('hyps/hyps-small_model.yaml', 'r') as yaml_file:
+        hyps = yaml.safe_load(yaml_file)
 
 batch_size = hyps['batch_size']  # How many independent sequences will we precess in parallel
 block_size = hyps['block_size']  # What is the maximum context length for predictions
@@ -38,7 +49,7 @@ vocab_size = len(all_chars_in_list_sorted)
 # A simple encoder/decoder
 stoi = {}
 itos = {}
-for i, ch in enumerate(all_chars):
+for i, ch in enumerate(all_chars_in_list_sorted):
     stoi[ch] = i
     itos[i] = ch
 
@@ -56,23 +67,23 @@ val_data = data[train_test_thres:]
 
 torch.manual_seed(1337)
 
-model = BLM(vocab_size)
-# idx = torch.zeros((1, 1), dtype = torch.long)
-print(decode(model.generate(torch.zeros((1, 1), dtype = torch.long), max_new_tokens=max_tokens)[0].tolist()))
+model = TM(vocab_size)
+# print(decode(model.generate(torch.zeros((1, 1), dtype = torch.long), max_new_tokens=max_tokens)[0].tolist()))
 @torch.no_grad()
 def estimate_loss():
     out = {}
     model.eval()
-    for split in ['train', 'val']:
-        losses = torch.zeros(hyps['eval_iters'])
-        for k in range(hyps['eval_iters']):
-            if split =='train':
-                X, Y = get_batch(train_data, hyps['batch_size'], hyps['block_size'])
-            else:
-                X, Y = get_batch(val_data, hyps['batch_size'], hyps['block_size'])
-            _, loss = model(X, Y)
-            losses[k] = loss.item()
-        out[split] = losses.mean()
+    losses_train = torch.zeros(hyps['eval_iters'])
+    losses_val = torch.zeros(hyps['eval_iters'])
+    for k in range(hyps['eval_iters']):
+        X_train, Y_train = get_batch(train_data, hyps['batch_size'], hyps['block_size'])
+        X_val, Y_val = get_batch(val_data, hyps['batch_size'], hyps['block_size'])
+        _, loss_train = model(X_train, Y_train)
+        _, loss_val = model(X_val, Y_val)
+        losses_train[k] = loss_train.item()
+        losses_val[k] = loss_val.item()
+    out['train'] = losses_train.mean()
+    out['val'] = losses_val.mean()
     model.train()
     return out
 
@@ -94,5 +105,14 @@ def train():
             losses = estimate_loss()
             print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
 
-train()
+if load_prev_model:
+    model.load_state_dict(torch.load('saved_model/model.pth'))
+    model.eval()
+else:
+    train()
 print(decode(model.generate(torch.zeros((1, 1), dtype = torch.long), max_new_tokens=max_tokens)[0].tolist()))
+
+if save_model:
+    print("Saving the state dictionary...")
+    torch.save(model.state_dict(), 'saved_model/model.pth')
+    print("State dictionary saved.")
