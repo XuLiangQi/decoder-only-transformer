@@ -1,4 +1,5 @@
 # Load third-party modules
+import yaml
 import torch
 from torch.nn import functional as F
 
@@ -8,11 +9,10 @@ from tools.get_batch import get_batch
 from models.bigram_language_model import BigramLanguageModel as BLM
 from models.transformer_model import TransformerModel as TM
 
-import yaml
 
-use_large_model_params = True
+use_large_model_params = False
 save_model = False
-load_prev_model = True
+load_prev_model = False
 
 print(f"CONFIG: "
       f"Is it large model: {use_large_model_params};\n"
@@ -39,7 +39,6 @@ elif torch.backends.mps.is_available():
 # Read tiny shakespear txt file
 text_dir = "data/tinyShakespeare.txt"
 text = load_text(text_dir)
-# print("Length of dataset in characters: ", len(text))
 
 all_chars = set(text)
 all_chars_in_list = list(all_chars)
@@ -68,7 +67,6 @@ val_data = data[train_test_thres:]
 torch.manual_seed(1337)
 
 model = TM(vocab_size)
-# print(decode(model.generate(torch.zeros((1, 1), dtype = torch.long), max_new_tokens=max_tokens)[0].tolist()))
 @torch.no_grad()
 def estimate_loss():
     out = {}
