@@ -66,7 +66,9 @@ val_data = data[train_test_thres:]
 
 torch.manual_seed(1337)
 
-model = TM(vocab_size)
+model = BLM(vocab_size)
+
+print(decode(model.generate(torch.zeros((1, 1), dtype = torch.long), max_new_tokens=max_tokens)[0].tolist()))
 @torch.no_grad()
 def estimate_loss():
     out = {}
