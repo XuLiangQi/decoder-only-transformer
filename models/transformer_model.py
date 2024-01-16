@@ -8,7 +8,7 @@ import yaml
 
 # with open('hyps/hyps-small_model.yaml', 'r') as yaml_file:
 #     hyps = yaml.safe_load(yaml_file)
-with open('hyps/hyps-large_model.yaml', 'r') as yaml_file:
+with open('hyps/hyps-large-model.yaml', 'r') as yaml_file:
     hyps = yaml.safe_load(yaml_file)
 
 class Head(nn.Module):

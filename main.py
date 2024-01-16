@@ -10,7 +10,7 @@ from models.bigram_language_model import BigramLanguageModel as BLM
 from models.transformer_model import TransformerModel as TM
 
 
-use_large_model_params = False
+use_large_model_params = True
 save_model = False
 load_prev_model = False
 
@@ -20,10 +20,10 @@ print(f"CONFIG: "
       f"Load previously saved model: {load_prev_model};\n")
 
 if use_large_model_params:
-    with open('hyps/hyps-large_model.yaml', 'r') as yaml_file:
+    with open('hyps/hyps-large-model.yaml', 'r') as yaml_file:
         hyps = yaml.safe_load(yaml_file)
 else:
-    with open('hyps/hyps-small_model.yaml', 'r') as yaml_file:
+    with open('hyps/hyps-small-model.yaml', 'r') as yaml_file:
         hyps = yaml.safe_load(yaml_file)
 
 batch_size = hyps['batch_size']  # How many independent sequences will we precess in parallel
