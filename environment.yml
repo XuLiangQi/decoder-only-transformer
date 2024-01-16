@@ -1,4 +1,4 @@
-name: a-gpt
+name: decoder-only-transformer
 channels:
   - pytorch-nightly
   - defaults
